@@ -1,0 +1,20 @@
+[
+  {
+    "id": "momentum-breakout",
+    "name": "Price Breakout",
+    "filters": ["ema-trend", "rsi-band"],
+    "scan": "({cash} ( latest close > 1 day ago close * 1.03 and latest volume > 20 day sma volume * 2 and latest close > 100 and latest close > 20 day ema and latest 20 day ema > 50 day ema and latest 14 day rsi > 40 and latest 14 day rsi < 70 ))"
+  },
+  {
+    "id": "momentum-rs",
+    "name": "Relative Strength",
+    "filters": ["ema-trend", "rsi-band"],
+    "scan": "({cash} ( latest close > 20 day sma and latest close > 1 day ago close and latest volume > 1 day ago volume * 1.2 and latest 14 day rsi > 1 day ago 14 day rsi and latest close > 20 day ema and latest 20 day ema > 50 day ema and latest 14 day rsi > 40 and latest 14 day rsi < 70 ))"
+  },
+  {
+    "id": "momentum-volma",
+    "name": "Volume-MA Momentum",
+    "filters": ["ema-trend", "rsi-band"],
+    "scan": "({cash} ( latest volume > 20 day sma volume * 3 and latest close > 1 day ago close * 1.02 and latest close > 20 day sma and latest close > 20 day ema and latest 20 day ema > 50 day ema and latest 14 day rsi > 40 and latest 14 day rsi < 70 ))"
+  }
+]
