@@ -1,0 +1,5 @@
+# Momentum signals watchlist (optional allowlist).
+# One NSE symbol per line, UPPERCASE. Leave empty/remove to track all matches.
+# Example:
+# RELIANCE
+# TCS
