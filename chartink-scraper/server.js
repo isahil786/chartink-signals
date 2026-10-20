@@ -246,29 +246,34 @@ app.get(`${BASE}/api/scanner/:slug`, async (req, res) => {
 // ─── API: oapi — proxy Chartink indicator data ──────────────────────────────────
 
 app.get(`${BASE}/api/oapi`, async (req, res) => {
-  const symbol = req.query.symbol || 'AURUS';
+  const symbol = (req.query.symbol || 'AURUS').toUpperCase();
   const timeframe = req.query.timeframe || '15 minutes';
-  const scanRunToken = req.query.scan_run_token || '';
-  const scanId = req.query.scan_id || '';
-  const useLive = req.query.use_live !== '0' ? '1' : '0';
   const size = req.query.size || '200';
   const limit = req.query.limit || size;
   const end_time = req.query.end_time || Math.floor(Date.now() / 1000) * 1000;
 
-  const form = new URLSearchParams({
-    query: `select open, high, low, close, volume, Close as 'indicatorsetid1layerId0c5d603e-0f47-40ee-99da-af54c5a46217', filternumber({scan-link:${scanRunToken}}) as 'indicatorsetid1layerId0c5d603e-0f47-40ee-99da-af54c5a46217-color' where symbol='${symbol}'`,
-    use_live: useLive === '1' ? '1' : '0',
-    limit: limit,
-    size: size,
-    widget_id: '-1',
-    end_time: end_time,
-    timeframe: timeframe,
-    symbol: symbol,
-    scan_link: `scanlink:${scanRunToken}`,
-  });
+  // Historical OHLCV is what the charting tab renders. Chartink returns an empty
+  // `groupData` for live intraday (`use_live=1`) requests, so history is the default.
+  const useLive = req.query.use_live === '1' ? '1' : '0';
 
-  try {
-    const response = await axios.post('https://chartink.com/oapi', form.toString(), {
+  // Minimal query: the five OHLCV columns only. The previous version aliased `Close`
+  // with a hardcoded indicator-set UUID and sent `scan_link` derived from the
+  // screener's scan_run_token; Chartink now rejects that combination with
+  // 404 ("Scan not found"), so the indicator alias / scan_link are dropped (the
+  // frontend only consumes open/high/low/close/volume + tradeTimes).
+  const form = {
+    query: `select open, high, low, close, volume where symbol='${symbol}'`,
+    use_live: useLive,
+    limit,
+    size,
+    widget_id: '-1',
+    end_time,
+    timeframe,
+    symbol,
+  };
+
+  const post = (extra = {}) =>
+    axios.post('https://chartink.com/oapi', new URLSearchParams({ ...form, ...extra }).toString(), {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'User-Agent': BROWSER_UA,
@@ -277,6 +282,15 @@ app.get(`${BASE}/api/oapi`, async (req, res) => {
       },
       timeout: 30000,
     });
+
+  try {
+    let response = await post();
+    // Under load Chartink can answer 200 with an empty groupData; retry once so a
+    // transient empty response doesn't render as "No data".
+    if (!response.data?.groupData?.length) {
+      await new Promise((r) => setTimeout(r, 1000));
+      response = await post();
+    }
     res.json(response.data);
   } catch (err) {
     res.status(500).json({ error: err.message });
