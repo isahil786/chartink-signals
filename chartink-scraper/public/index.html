@@ -20,6 +20,7 @@
       <div class="tab-switcher">
         <button id="tab-screeners" class="tab-btn active" data-tab="screeners">Screeners</button>
         <button id="tab-charting" class="tab-btn" data-tab="charting">Charting</button>
+        <button id="tab-signals" class="tab-btn" data-tab="signals">Momentum Signals</button>
       </div>
       <nav id="nav-list">
         <div class="nav-loading">Loading screeners…</div>
@@ -138,6 +139,45 @@
             <tbody id="oapi-tbody"></tbody>
           </table>
           <div id="oapi-empty" class="empty-msg hidden">No data. Enter a screener slug and fetch.</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Momentum Signals Tab -->
+    <div id="signals-tab" class="hidden">
+      <header class="dash-header">
+        <div>
+          <h1 id="signals-title">Momentum Signals</h1>
+          <div id="signals-status" class="dash-subtitle"></div>
+        </div>
+        <div class="signals-controls">
+          <span id="signals-badge" class="status-badge"></span>
+          <button id="btn-signals-toggle" class="btn-toggle" title="Enable / disable live momentum scanning"></button>
+          <button id="btn-signals-refresh" class="btn-refresh" title="Reload snapshot">↺ Refresh</button>
+        </div>
+      </header>
+
+      <section class="panel panel-signals">
+        <div class="table-wrap">
+          <table id="signals-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Signal</th>
+                <th>NSE Code</th>
+                <th>Company</th>
+                <th class="num">LTP (₹)</th>
+                <th class="num">% Change</th>
+                <th class="num">Volume</th>
+            <th>Strength</th>
+            <th class="num">Confidence</th>
+            <th>Backtest</th>
+            <th>Recent Match</th>
+              </tr>
+            </thead>
+            <tbody id="signals-tbody"></tbody>
+          </table>
+          <div id="signals-empty" class="empty-msg hidden"></div>
         </div>
       </section>
     </div>
