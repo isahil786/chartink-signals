@@ -4,6 +4,8 @@ let activeSlug = null;
 let chartDaily = null;
 let chartSector = null;
 let chartOapi = null;
+let signalsState = { enabled: false, status: 'disabled', stocks: [], backtest: {} };
+let signalsPoll = null;
 
 /* ── Boot ────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,6 +25,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Charting fetch
   document.getElementById('btn-fetch-chart').addEventListener('click', fetchOapi);
+
+  // Momentum signals controls
+  const toggleBtn = document.getElementById('btn-signals-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', async () => {
+      const target = !signalsState.enabled;
+      try {
+        await fetch(`${API_BASE}/api/signals/toggle?value=${target}`, { method: 'POST' });
+        await loadSignals();
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    });
+  }
+  const refreshBtn = document.getElementById('btn-signals-refresh');
+  if (refreshBtn) refreshBtn.addEventListener('click', loadSignals);
 });
 
 /* ── Base path (injected by server into <meta name="base-path">) ── */
@@ -469,13 +487,28 @@ function switchTab(tab) {
 
   const dashboardEl = document.getElementById('dashboard');
   const chartingEl = document.getElementById('charting-tab');
+  const signalsEl = document.getElementById('signals-tab');
 
   if (tab === 'charting') {
     dashboardEl.classList.add('hidden');
     chartingEl.classList.remove('hidden');
+    signalsEl.classList.add('hidden');
+  } else if (tab === 'signals') {
+    dashboardEl.classList.add('hidden');
+    chartingEl.classList.add('hidden');
+    signalsEl.classList.remove('hidden');
+    if (!signalsPoll) {
+      loadSignals();
+      signalsPoll = setInterval(loadSignals, 15000);
+    }
   } else {
     dashboardEl.classList.remove('hidden');
     chartingEl.classList.add('hidden');
+    signalsEl.classList.add('hidden');
+    if (signalsPoll) {
+      clearInterval(signalsPoll);
+      signalsPoll = null;
+    }
   }
 }
 
@@ -658,5 +691,118 @@ function renderOapiChart(rows, timeframe) {
       },
     },
   });
+}
+
+/* ── Momentum signals ──────────────────────────────────────────── */
+
+async function loadSignals() {
+  try {
+    const data = await api('/api/signals');
+    signalsState = data;
+    renderSignals(data);
+  } catch (e) {
+    const empty = document.getElementById('signals-empty');
+    const table = document.getElementById('signals-table');
+    empty.textContent = 'Error: ' + e.message;
+    empty.classList.remove('hidden');
+    table.classList.add('hidden');
+  }
+}
+
+function renderSignals(data) {
+  const badge = document.getElementById('signals-badge');
+  const statusText = document.getElementById('signals-status');
+  const toggleBtn = document.getElementById('btn-signals-toggle');
+  const table = document.getElementById('signals-table');
+  const empty = document.getElementById('signals-empty');
+
+  if (toggleBtn) {
+    toggleBtn.textContent = data.enabled ? 'Disable' : 'Enable';
+    toggleBtn.classList.toggle('on', data.enabled);
+    toggleBtn.classList.toggle('off', !data.enabled);
+  }
+
+  if (data.marketOpen) {
+    badge.textContent = 'Market Open';
+    badge.className = 'status-badge badge-open';
+  } else if (data.status === 'disabled') {
+    badge.textContent = 'Disabled';
+    badge.className = 'status-badge badge-closed';
+  } else {
+    badge.textContent = 'Market Closed';
+    badge.className = 'status-badge badge-closed';
+  }
+
+  const count = data.stocks?.length || 0;
+  const last = data.lastGenerated
+    ? new Date(data.lastGenerated).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+    : '—';
+  statusText.textContent = `${data.status} · ${count} signals · updated ${last}`;
+
+  const needsAuth = Object.values(data.backtest || {}).some(
+    (bt) => bt && bt.cacheError && /login|auth/i.test(bt.cacheError)
+  );
+
+  if (count === 0) {
+    table.classList.add('hidden');
+    empty.classList.remove('hidden');
+    empty.textContent =
+      data.status === 'disabled'
+        ? 'Momentum signals are disabled. Toggle on to start scanning.'
+        : data.status === 'market-closed'
+        ? 'Market closed. Signals refresh during 09:15–16:00 IST (Mon–Fri).'
+        : needsAuth
+        ? 'No stocks returned — Chartink requires a session. Add a Chartink session to chartink-scraper/cookies.txt to fetch live scans and backtests.'
+        : 'No stocks matched the momentum scans right now.';
+    empty.classList.add('muted');
+  } else {
+    renderSignalsTable(data.stocks || [], data.backtest || {});
+    table.classList.remove('hidden');
+    empty.classList.add('hidden');
+  }
+}
+
+function formatRecentMatch(rec) {
+  if (!rec) return '<span class="muted">—</span>';
+  const last = rec.lastDate ? new Date(rec.lastDate).toLocaleDateString('en-IN') : '—';
+  return `<span class="recent-match" title="Matched on ${rec.days} of last ${rec.ofLast} trade days; ${rec.total} total"> ${rec.days}/${rec.ofLast} days · last ${last}</span>`;
+}
+
+function formatBacktest(bt) {
+  if (!bt) return '<span class="muted">no backtest</span>';
+  if (bt.cacheError) {
+    return `<span class="muted" title="${bt.cacheError}">${bt.cacheError}</span>`;
+  }
+  const s = bt.summary || {};
+  const occ = s.totalSignalOccurrences ?? 0;
+  const days = s.activeDays ?? 0;
+  const hit = s.hitRate != null ? `${(s.hitRate * 100).toFixed(0)}%` : '—';
+  return `<span title="Occurrences ${occ} · active days ${days} · hit-rate ${hit}">${occ} occ · ${days} days · ${hit} hit</span>`;
+}
+
+function renderSignalsTable(stocks, backtest) {
+  const tbody = document.getElementById('signals-tbody');
+  tbody.innerHTML = stocks
+    .map((s, i) => {
+      const chg = Number(s.pctChange) || 0;
+      const cls = chg > 0 ? 'change-pos' : chg < 0 ? 'change-neg' : '';
+      const sign = chg > 0 ? '+' : '';
+      const vol = Number(s.volume).toLocaleString('en-IN');
+      return `
+        <tr>
+          <td class="num">${i + 1}</td>
+          <td><span class="tag">${s.signal || ''}</span></td>
+          <td><span class="nse-code">${s.symbol || ''}</span></td>
+          <td>${s.name || ''}</td>
+          <td class="num">₹${(Number(s.ltp) || 0).toFixed(2)}</td>
+          <td class="num ${cls}">${sign}${chg.toFixed(2)}%</td>
+          <td class="num muted">${vol}</td>
+          <td><span class="badge badge-${s.strength || 'none'}">${s.strength || ''}</span></td>
+          <td class="num muted">${((Number(s.confidence) || 0) * 100).toFixed(0)}%</td>
+          <td>${formatBacktest(backtest[s.type])}</td>
+          <td>${formatRecentMatch(s.recentMatch)}</td>
+        </tr>`;
+    })
+    .join('');
 }
 
