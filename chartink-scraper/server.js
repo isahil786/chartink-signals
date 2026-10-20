@@ -6,11 +6,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { runScreener, extractScanClause, extractCsrfToken } from './src/chartink.js';
+import * as signals from './src/signals.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const BASE = (process.env.BASE_PATH || '/dashboard').replace(/\/$/, '');
 
@@ -359,9 +361,20 @@ app.get(`${BASE}/api/backtests/:slug/stocks`, (req, res) => {
   res.json(rows);
 });
 
+// ─── API: Momentum Signals ────────────────────────────────────────────────────
+// Mount the signals engine under /api/signals. The router is self-contained:
+// it reads cookies.txt, runs live scans, caches backtests, and starts timers.
+
+app.use(`${BASE}/api/signals`, signals.signalsRouter);
+
 // ─── Start ────────────────────────────────────────────────────────────────────
+// Seed in-memory cache from state/momentum-latest.json and start the status/cycle
+// timers at boot.
+
+signals.init();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Chartink Dashboard running at http://localhost:${PORT}${BASE}/`);
   console.log(`API ready at http://localhost:${PORT}${BASE}/api/screeners`);
+  console.log(`Signals: http://localhost:${PORT}${BASE}/api/signals/status`);
 });
