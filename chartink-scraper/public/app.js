@@ -498,24 +498,33 @@ async function fetchOapi() {
   errorEl.classList.add('hidden');
   metaEl.innerHTML = '';
 
-  if (!slug) {
-    errorEl.textContent = 'Please enter a screener slug';
+  if (!symbol) {
+    errorEl.textContent = 'Please enter a symbol';
     errorEl.classList.remove('hidden');
     return;
   }
 
-  try {
-    const meta = await fetchScannerMeta(slug);
-
-    metaEl.innerHTML = `
+  // The chart data only needs a symbol + timeframe now, but the (optional)
+  // screener slug still surfaces its scan clause / scan-run-token for reference.
+  // If the slug is missing or invalid, keep going and load the chart anyway.
+  let scanRunToken = '';
+  let scanId = '';
+  if (slug) {
+    try {
+      const meta = await fetchScannerMeta(slug);
+      scanRunToken = meta.scanRunToken || '';
+      scanId = meta.scanId || '';
+      metaEl.innerHTML = `
       <div class="meta-row"><span>Scan Clause</span><span>${meta.scanClause || 'N/A'}</span></div>
       <div class="meta-row"><span>Scan Run Token</span><span>${meta.scanRunToken || 'N/A'}</span></div>
       <div class="meta-row"><span>Scan ID</span><span>${meta.scanId || 'N/A'}</span></div>
     `;
+    } catch {
+      metaEl.innerHTML = `<div class="meta-row"><span>Screener</span><span style="color:#f87171">unavailable (chart still loads)</span></div>`;
+    }
+  }
 
-    const scanRunToken = meta.scanRunToken || '';
-    const scanId = meta.scanId || '';
-
+  try {
     const params = new URLSearchParams({
       symbol,
       timeframe,
