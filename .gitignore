@@ -52,3 +52,6 @@ Thumbs.db
 /chartink-scraper/state/momentum-flag.json
 /chartink-scraper/state/momentum-latest.json
 /chartink-scraper/state/momentum-backtest/
+
+# Chartink session cookie (use RENDER CHARTINK_COOKIE env var instead)
+/chartink-scraper/cookies.txt

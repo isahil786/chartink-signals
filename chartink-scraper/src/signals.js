@@ -18,7 +18,7 @@ const QUERIES_FILE = path.join(CHARTINK_DIR, 'momentum-queries.json');
 const WATCHLIST_FILE = path.join(CHARTINK_DIR, 'watchlist.txt');
 
 const STATUS_INTERVAL = 30_000;
-const RUN_INTERVAL = 150_000;
+const RUN_INTERVAL = 120_000;
 const BACKTEST_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_ROWS = 60;
 const IST = 'Asia/Kolkata';
@@ -105,6 +105,8 @@ function loadWatchlist() {
 }
 
 function loadCookies() {
+  const envCookie = process.env.CHARTINK_COOKIE;
+  if (envCookie) return envCookie.trim();
   try {
     if (fs.existsSync(COOKIE_FILE)) return fs.readFileSync(COOKIE_FILE, 'utf8').trim();
   } catch (e) {
