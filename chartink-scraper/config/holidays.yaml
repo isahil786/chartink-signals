@@ -1,0 +1,23 @@
+# NSE equity-segment trading holidays for 2026.
+# Source: NSE "Trading Holidays 2026" (equity segment).
+# Updated annually — replace this file when NSE publishes new dates.
+# All times are IST on NSE trading days only (weekends and holidays skipped).
+
+year: 2026
+holidays:
+  - "2026-01-15"
+  - "2026-01-26"
+  - "2026-03-03"
+  - "2026-03-26"
+  - "2026-03-31"
+  - "2026-04-03"
+  - "2026-04-14"
+  - "2026-05-01"
+  - "2026-05-28"
+  - "2026-06-26"
+  - "2026-09-14"
+  - "2026-10-02"
+  - "2026-10-20"
+  - "2026-11-10"
+  - "2026-11-24"
+  - "2026-12-25"
