@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { runCustomQuery } from './custom.js';
 import { runCustomBacktest } from './backtest.js';
 import { processBacktest } from './processor.js';
+import { notifyDiscord, formatSignalEmbeds } from './discord.js';
 
 // All runtime paths anchored to chartink-scraper/ (server boots with that as cwd).
 const __signalsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -464,6 +465,8 @@ async function runCycle() {
     fetching = true;
     try {
       await generateSignals();
+      const embeds = formatSignalEmbeds(snapshot().stocks, 'Momentum');
+      if (embeds) await notifyDiscord(null, embeds);
     } catch (e) {
       console.error('[signals] cycle failed:', e.message);
     } finally {
