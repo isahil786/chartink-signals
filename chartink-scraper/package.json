@@ -13,6 +13,7 @@
     "pipeline:status": "node pipeline-runner.js --status",
     "train:probability": "node train-probability.js",
     "lint": "eslint src *.js",
+    "test": "node test-runner.mjs",
     "format": "prettier --write src *.js"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
     "cheerio": "^1.0.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "js-yaml": "^5.5.0",
     "tough-cookie": "^6.0.1"
   },
   "devDependencies": {
