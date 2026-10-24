@@ -41,6 +41,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const refreshBtn = document.getElementById('btn-signals-refresh');
   if (refreshBtn) refreshBtn.addEventListener('click', loadSignals);
+
+  const runPipelineBtn = document.getElementById('btn-pipeline-run');
+  if (runPipelineBtn) {
+    runPipelineBtn.addEventListener('click', async () => {
+      runPipelineBtn.textContent = 'Running...';
+      runPipelineBtn.disabled = true;
+      try {
+        const res = await fetch(API_BASE + '/api/pipeline/run', { method: 'POST' });
+        const data = await res.json();
+        alert('Pipeline complete: ' + JSON.stringify(data));
+        await loadPipeline();
+      } catch (e) {
+        alert('Error: ' + e.message);
+      } finally {
+        runPipelineBtn.textContent = 'Run EOD';
+        runPipelineBtn.disabled = false;
+      }
+    });
+  }
 });
 
 /* ── Base path (injected by server into <meta name="base-path">) ── */
@@ -488,23 +507,37 @@ function switchTab(tab) {
   const dashboardEl = document.getElementById('dashboard');
   const chartingEl = document.getElementById('charting-tab');
   const signalsEl = document.getElementById('signals-tab');
+  const pipelineEl = document.getElementById('pipeline-tab');
 
   if (tab === 'charting') {
     dashboardEl.classList.add('hidden');
     chartingEl.classList.remove('hidden');
     signalsEl.classList.add('hidden');
+    pipelineEl.classList.add('hidden');
   } else if (tab === 'signals') {
     dashboardEl.classList.add('hidden');
     chartingEl.classList.add('hidden');
     signalsEl.classList.remove('hidden');
+    pipelineEl.classList.add('hidden');
     if (!signalsPoll) {
       loadSignals();
       signalsPoll = setInterval(loadSignals, 15000);
     }
+  } else if (tab === 'pipeline') {
+    dashboardEl.classList.add('hidden');
+    chartingEl.classList.add('hidden');
+    signalsEl.classList.add('hidden');
+    pipelineEl.classList.remove('hidden');
+    if (signalsPoll) {
+      clearInterval(signalsPoll);
+      signalsPoll = null;
+    }
+    loadPipeline();
   } else {
     dashboardEl.classList.remove('hidden');
     chartingEl.classList.add('hidden');
     signalsEl.classList.add('hidden');
+    pipelineEl.classList.add('hidden');
     if (signalsPoll) {
       clearInterval(signalsPoll);
       signalsPoll = null;
@@ -709,57 +742,178 @@ async function loadSignals() {
   }
 }
 
-function renderSignals(data) {
-  const badge = document.getElementById('signals-badge');
-  const statusText = document.getElementById('signals-status');
-  const toggleBtn = document.getElementById('btn-signals-toggle');
-  const table = document.getElementById('signals-table');
-  const empty = document.getElementById('signals-empty');
+/* ── Pipeline ─────────────────────────────────────────────────── */
+let pipelineState = { regime: [], stats: [], ranked: [], summary: [] };
 
-  if (toggleBtn) {
-    toggleBtn.textContent = data.enabled ? 'Disable' : 'Enable';
-    toggleBtn.classList.toggle('on', data.enabled);
-    toggleBtn.classList.toggle('off', !data.enabled);
+async function loadPipeline() {
+  try {
+    const [regimeRes, statsRes, summaryRes] = await Promise.all([
+      api('/api/pipeline/regime'),
+      api('/api/pipeline/stats/summary'),
+      api('/api/pipeline/summary'),
+    ].map((p) => p.catch((e) => null)));
+
+  const regimeData = regimeRes?.entries || [];
+  const statsData = statsRes || [];
+  const summaryData = summaryRes || [];
+
+  pipelineState = { regime: regimeData, stats: statsData, summary: summaryData };
+  renderPipelineSummary(summaryData);
+  renderRegimeChart(regimeData);
+  renderPipelineStats(statsData);
+
+    // Try to load ranked signals
+    try {
+      const rankedRes = await api('/api/pipeline/ranked');
+      if (rankedRes && Array.isArray(rankedRes.signals?.ranked)) {
+        renderRankedSignals(rankedRes.signals.ranked);
+      }
+    } catch (e) {
+      document.getElementById('pipeline-ranked-empty').textContent = 'No gated signals available.';
+      document.getElementById('pipeline-ranked-empty').classList.remove('hidden');
+    }
+  } catch (e) {
+    console.error('[pipeline] error:', e);
   }
+}
 
-  if (data.marketOpen) {
-    badge.textContent = 'Market Open';
-    badge.className = 'status-badge badge-open';
-  } else if (data.status === 'disabled') {
-    badge.textContent = 'Disabled';
-    badge.className = 'status-badge badge-closed';
-  } else {
-    badge.textContent = 'Market Closed';
-    badge.className = 'status-badge badge-closed';
-  }
+function renderPipelineSummary(summary) {
+  const cards = document.getElementById('pipeline-stat-cards');
+  if (!cards) return;
 
-  const count = data.stocks?.length || 0;
-  const last = data.lastGenerated
-    ? new Date(data.lastGenerated).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
-    : '—';
-  statusText.textContent = `${data.status} · ${count} signals · updated ${last}`;
+  const latest = summary[0] || {};
+  const totalDays = summary.length;
+  const gatedTotal = summary.reduce((s, d) => s + (d.gated || 0), 0);
+  const riskOnDays = summary.filter((d) => d.regime === 'risk-on').length;
 
-  const needsAuth = Object.values(data.backtest || {}).some(
-    (bt) => bt && bt.cacheError && /login|auth/i.test(bt.cacheError)
+  cards.innerHTML = '';
+  const card = (label, value) => {
+    const div = document.createElement('div');
+    div.className = 'stat-card blue';
+    div.innerHTML = `<div class="label">${label}</div><div class="value">${value}</div>`;
+    return div;
+  };
+  cards.append(
+    card('Pipeline Runs', totalDays),
+    card('Total Gated', gatedTotal),
+    card('Risk-On Days', riskOnDays),
+    card('Latest Regime', latest.regime || '—')
   );
+}
 
-  if (count === 0) {
-    table.classList.add('hidden');
+function renderRegimeChart(regimeData) {
+  const ctx = document.getElementById('chart-regime');
+  if (!ctx || !regimeData.length) return;
+
+  if (window.chartRegime) window.chartRegime.destroy();
+
+  const sorted = [...regimeData].sort((a, b) => (a.date > b.date ? 1 : -1));
+  const dates = sorted.map((r) => r.date);
+  const breadths = sorted.map((r) => r.breadth * 100);
+  const regimes = sorted.map((r) => (r.regime === 'risk-on' ? 1 : 0));
+
+  const chart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [
+        {
+          label: 'Breadth %',
+          data: breadths,
+          borderColor: '#0ea5e5',
+          backgroundColor: 'rgba(14, 165, 233, 0.1)',
+          tension: 0.2,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Regime (risk-on=1, risk-off=0)',
+          data: regimes,
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245, 158, 11, 0.2)',
+          tension: 0,
+          stepped: true,
+          yAxisID: 'y1',
+          pointRadius: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        y: {
+          type: 'linear',
+          position: 'left',
+          title: { display: true, text: 'Breadth %' },
+          max: 100,
+          min: 0,
+        },
+        y1: {
+          type: 'linear',
+          position: 'right',
+          title: { display: true, text: 'Regime' },
+          max: 1,
+          min: 0,
+          ticks: { display: false },
+          grid: { drawOnChartArea: false },
+        },
+      },
+    },
+  });
+  window.chartRegime = chart;
+}
+
+function renderPipelineStats(stats) {
+  const tbody = document.getElementById('pipeline-stats-tbody');
+  const empty = document.getElementById('pipeline-stats-empty');
+  if (!tbody) return;
+
+  if (stats.length === 0) {
+    empty.textContent = 'No stats available.';
     empty.classList.remove('hidden');
-    empty.textContent =
-      data.status === 'disabled'
-        ? 'Momentum signals are disabled. Toggle on to start scanning.'
-        : data.status === 'market-closed'
-        ? 'Market closed. Signals refresh during 09:15–16:00 IST (Mon–Fri).'
-        : needsAuth
-        ? 'No stocks returned — Chartink requires a session. Add a Chartink session to chartink-scraper/cookies.txt to fetch live scans and backtests.'
-        : 'No stocks matched the momentum scans right now.';
-    empty.classList.add('muted');
-  } else {
-    renderSignalsTable(data.stocks || [], data.backtest || {});
-    table.classList.remove('hidden');
-    empty.classList.add('hidden');
+    tbody.innerHTML = '';
+    return;
   }
+
+  empty.classList.add('hidden');
+  tbody.innerHTML = stats.map((s) => `
+    <tr>
+      <td>${s.signalType || '—'}</td>
+      <td>${s.horizon || '—'}</td>
+      <td class="num">${s.occurrences || 0}</td>
+      <td class="num">${((s.hitRate || 0) * 100).toFixed(1)}%</td>
+      <td class="num">${(s.avgReturn || 0).toFixed(2)}%</td>
+      <td class="num">${((s.wilsonLower || 0) * 100).toFixed(1)}%</td>
+    </tr>
+  `).join('');
+}
+
+function renderRankedSignals(ranked) {
+  const tbody = document.getElementById('pipeline-ranked-tbody');
+  const empty = document.getElementById('pipeline-ranked-empty');
+  if (!tbody) return;
+
+  if (ranked.length === 0) {
+    empty.textContent = 'No gated signals available.';
+    empty.classList.remove('hidden');
+    tbody.innerHTML = '';
+    return;
+  }
+
+  empty.classList.add('hidden');
+  tbody.innerHTML = ranked.map((r, i) => `
+    <tr>
+      <td class="num">${i + 1}</td>
+      <td>${r.scanName || r.signalType || '—'}</td>
+      <td>${r.nseCode || '—'}</td>
+      <td>${r.regime || '—'}</td>
+      <td class="num">${r.gate?.bestHorizon || r.horizon || '—'}</td>
+      <td class="num">${r.score?.score?.toFixed(4) || '—'}</td>
+      <td class="num">${r.gate?.stats?.hitRate ? (r.gate.stats.hitRate * 100).toFixed(0) + '%' : '—'}</td>
+      <td class="num">${r.gate?.stats?.avgNetReturn?.toFixed(2) || '—'}%</td>
+      <td class="num">${r.gate?.stats?.profitFactor ? (Number.isFinite(r.gate.stats.profitFactor) ? r.gate.stats.profitFactor.toFixed(2) : '∞') : '—'}</td>
+    </tr>
+  `).join('');
 }
 
 function formatRecentMatch(rec) {
@@ -778,6 +932,37 @@ function formatBacktest(bt) {
   const days = s.activeDays ?? 0;
   const hit = s.hitRate != null ? `${(s.hitRate * 100).toFixed(0)}%` : '—';
   return `<span title="Occurrences ${occ} · active days ${days} · hit-rate ${hit}">${occ} occ · ${days} days · ${hit} hit</span>`;
+}
+
+function renderSignals(data) {
+  const badge = document.getElementById('signals-badge');
+  const statusText = document.getElementById('signals-status');
+  const toggleBtn = document.getElementById('btn-signals-toggle');
+  const table = document.getElementById('signals-table');
+  const empty = document.getElementById('signals-empty');
+
+  if (toggleBtn) {
+    toggleBtn.textContent = data.enabled ? 'Disable' : 'Enable';
+    toggleBtn.className = data.enabled ? 'btn-toggle-on' : 'btn-toggle-off';
+  }
+  if (badge) {
+    badge.textContent = data.status || 'unknown';
+    badge.className = 'status-badge ' + (data.status === 'scanning' ? 'status-active' : data.status === 'disabled' ? 'status-inactive' : '');
+  }
+  if (statusText) statusText.textContent = data.message || '';
+
+  if (!data.stocks || data.stocks.length === 0) {
+    const msg = data.needsAuth
+      ? 'No stocks returned — Chartink requires a session. Add cookies to fetch live scans.'
+      : 'No stocks matched the momentum scans right now.';
+    empty.textContent = msg;
+    empty.classList.remove('hidden');
+    table.classList.add('hidden');
+  } else {
+    renderSignalsTable(data.stocks || [], data.backtest || {});
+    table.classList.remove('hidden');
+    empty.classList.add('hidden');
+  }
 }
 
 function renderSignalsTable(stocks, backtest) {
