@@ -144,7 +144,7 @@ Screeners:
 
 Monthly close above 5-month high
 
-Stock in Nifty 500 or strong sector (add manual filter)
+Stock in broad market or strong sector (liquidity filter from config)
 
 4. Pipeline Transition Rules
    A stock moves from one stage to the next only if it appears in the later screener within a defined time window. The window is determined by backtesting.
@@ -225,7 +225,7 @@ Price: Avoid penny stocks; e.g., > ₹50.
 
 Market Cap: > ₹500 Cr for intraday, > ₹1000 Cr for swings.
 
-Sector/Index: Only stocks from Nifty 500 or sectoral indices with positive trend.
+Sector: Only stocks from broad market sectors with positive trend.
 
 Time of Day (day trading only): Ignore Stage1 triggers after 2:30 PM.
 
@@ -585,13 +585,13 @@ Time of day when Stage 1 fired (e.g., 10:45 AM bucket)
 
 Market Context Features (at Stage 1 trigger)
 
-Nifty / Bank Nifty % change for the day
+Market breadth change for the day (from Chartink breadth scans)
 
 VIX level (high/low bucket)
 
 Sector performance rank of the stock’s sector (e.g., top 3 sectors vs. others)
 
-Stock’s relative strength vs. Nifty over last 5 days
+Stock’s relative strength vs. market breadth over last 5 days
 
 Pre-Pump Compression Quality
 
