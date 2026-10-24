@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { runScreener, extractScanClause, extractCsrfToken } from './src/chartink.js';
 import * as signals from './src/signals.js';
+import { runEODPipeline } from './src/scheduler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -366,6 +367,95 @@ app.get(`${BASE}/api/backtests/:slug/stocks`, (req, res) => {
 // it reads cookies.txt, runs live scans, caches backtests, and starts timers.
 
 app.use(`${BASE}/api/signals`, signals.signalsRouter);
+
+// ─── API: Momentum backtest pipeline ─────────────────────────────────────
+// Point-in-time stats, regime history, and signal scoring.
+
+const STATE_DIR = path.join(__dirname, 'state');
+
+app.get(`${BASE}/api/pipeline/stats`, (_req, res) => {
+  const fp = path.join(STATE_DIR, 'backtest_stats.json');
+  if (!fs.existsSync(fp)) return res.json({ rows: [] });
+  const stats = JSON.parse(fs.readFileSync(fp, 'utf8'));
+  res.json({ rows: stats });
+});
+
+app.get(`${BASE}/api/pipeline/stats/summary`, (_req, res) => {
+  const fp = path.join(STATE_DIR, 'backtest_stats.json');
+  if (!fs.existsSync(fp)) return res.json({});
+  const stats = JSON.parse(fs.readFileSync(fp, 'utf8'));
+  // Aggregate by signalType + horizon
+  const agg = {};
+  for (const s of stats) {
+    const key = `${s.signalType}|${s.horizon}`;
+    if (!agg[key]) agg[key] = { signalType: s.signalType, horizon: s.horizon, occurrences: 0, wins: 0, totalReturn: 0 };
+    agg[key].occurrences += s.occurrences;
+    agg[key].wins += Math.round(s.hitRate * s.occurrences);
+    agg[key].totalReturn += s.avgNetReturn * s.occurrences;
+  }
+  const summary = Object.values(agg).map((a) => ({
+    signalType: a.signalType,
+    horizon: a.horizon,
+    occurrences: a.occurrences,
+    hitRate: a.occurrences > 0 ? a.wins / a.occurrences : 0,
+    avgReturn: a.occurrences > 0 ? a.totalReturn / a.occurrences : 0,
+  }));
+  res.json(summary);
+});
+
+app.get(`${BASE}/api/pipeline/regime`, (_req, res) => {
+  const fp = path.join(STATE_DIR, 'regime_history.json');
+  if (!fs.existsSync(fp)) return res.json({ entries: [] });
+  const raw = fs.readFileSync(fp, 'utf8').trim();
+  let entries;
+  try {
+    entries = JSON.parse(raw);
+    if (!Array.isArray(entries)) entries = [];
+  } catch {
+    entries = raw.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  }
+  res.json({ entries });
+});
+
+app.get(`${BASE}/api/pipeline/ranked`, (_req, res) => {
+  const fp = path.join(STATE_DIR, 'daily_results');
+  if (!fs.existsSync(fp)) return res.json({ signals: [] });
+
+  // Get latest daily results
+  const files = fs.readdirSync(fp).filter((f) => f.endsWith('.json')).sort().reverse();
+  if (files.length === 0) return res.json({ signals: [] });
+
+  const latest = JSON.parse(fs.readFileSync(path.join(fp, files[0]), 'utf8'));
+  res.json(latest.signals || { signals: [] });
+});
+
+app.get(`${BASE}/api/pipeline/summary`, (_req, res) => {
+  const dailyDir = path.join(STATE_DIR, 'daily_results');
+  if (!fs.existsSync(dailyDir)) return res.json([]);
+  const files = fs.readdirSync(dailyDir).filter((f) => f.endsWith('.json')).sort().reverse();
+  const summaries = files.slice(0, 10).map((f) => {
+    const data = JSON.parse(fs.readFileSync(path.join(dailyDir, f), 'utf8'));
+    return {
+      date: data.date,
+      gated: data.signals?.gated || 0,
+      rejected: data.signals?.rejected || 0,
+      regime: data.regime?.regime || 'unknown',
+      backtest: data.backtest?.summary,
+    };
+  });
+  res.json(summaries);
+});
+
+// ─── API: Trigger EOD pipeline (admin) ──────────────────────────────────
+
+app.post(`${BASE}/api/pipeline/run`, async (_req, res) => {
+  try {
+    const result = await runEODPipeline();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 // Seed in-memory cache from state/momentum-latest.json and start the status/cycle
