@@ -21,6 +21,7 @@
         <button id="tab-screeners" class="tab-btn active" data-tab="screeners">Screeners</button>
         <button id="tab-charting" class="tab-btn" data-tab="charting">Charting</button>
         <button id="tab-signals" class="tab-btn" data-tab="signals">Momentum Signals</button>
+        <button id="tab-pipeline" class="tab-btn" data-tab="pipeline">Pipeline</button>
       </div>
       <nav id="nav-list">
         <div class="nav-loading">Loading screeners…</div>
@@ -180,6 +181,71 @@
           <div id="signals-empty" class="empty-msg hidden"></div>
         </div>
       </section>
+    </div>
+
+    <!-- Pipeline Tab -->
+    <div id="pipeline-tab" class="hidden">
+      <header class="dash-header">
+        <div>
+          <h1 id="pipeline-title">Momentum Backtest Pipeline</h1>
+          <div id="pipeline-status" class="dash-subtitle">Point-in-time stats, regime, and signal scoring</div>
+        </div>
+        <button id="btn-pipeline-run" class="btn-fetch" title="Run EOD pipeline now">Run EOD</button>
+      </header>
+
+      <section class="stat-cards" id="pipeline-stat-cards"></section>
+
+      <div class="panels">
+        <section class="panel panel-pipeline">
+          <h2 class="panel-title">Market Regime History</h2>
+          <div class="chart-wrap">
+            <canvas id="chart-regime"></canvas>
+          </div>
+        </section>
+
+        <section class="panel panel-pipeline">
+          <h2 class="panel-title">Ranked Signals (Gated & Scored)</h2>
+          <div class="table-wrap">
+            <table id="pipeline-ranked-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Scan</th>
+                  <th>NSE Code</th>
+                  <th>Regime</th>
+                  <th>Horizon</th>
+                  <th class="num">Score</th>
+                  <th class="num">Hit Rate</th>
+                  <th class="num">Avg Return</th>
+                  <th class="num">Profit Factor</th>
+                </tr>
+              </thead>
+              <tbody id="pipeline-ranked-tbody"></tbody>
+            </table>
+            <div id="pipeline-ranked-empty" class="empty-msg hidden">No gated signals available.</div>
+          </div>
+        </section>
+
+        <section class="panel panel-pipeline">
+          <h2 class="panel-title">PIT Stats Summary</h2>
+          <div class="table-wrap">
+            <table id="pipeline-stats-table">
+              <thead>
+                <tr>
+                  <th>Signal Type</th>
+                  <th>Horizon</th>
+                  <th class="num">Occurrences</th>
+                  <th class="num">Hit Rate</th>
+                  <th class="num">Avg Return</th>
+                  <th class="num">Wilson Lower</th>
+                </tr>
+              </thead>
+              <tbody id="pipeline-stats-tbody"></tbody>
+            </table>
+            <div id="pipeline-stats-empty" class="empty-msg hidden">No stats available.</div>
+          </div>
+        </section>
+      </div>
     </div>
   </main>
 
