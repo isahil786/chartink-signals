@@ -1,0 +1,33 @@
+# Momentum scan definitions.
+# Clauses are stored VERBATIM from Chartink scanner syntax — they are never
+# rewritten or interpreted by our code. Our code never decides whether a signal
+# fires; it only consumes what Chartink returns.
+
+scans:
+  momentum-breakout:
+    name: "Price Breakout"
+    signal: "Price Breakout"
+    scan: "({cash} ( latest close > 1 day ago close * 1.01 and latest volume > sma(volume, 20) * 1.2 and latest close > 100 and latest rsi(14) > 40 and latest rsi(14) < 70 ))"
+    maxRows: 60
+
+  momentum-rs:
+    name: "Relative Strength"
+    signal: "Relative Strength"
+    scan: "({cash} ( latest close > sma(close, 20) and latest close > 1 day ago close and latest volume > 1 day ago volume * 1.1 and latest rsi(14) > 40 and latest rsi(14) < 70 ))"
+    maxRows: 60
+
+  momentum-volma:
+    name: "Volume-MA Momentum"
+    signal: "Volume-MA Momentum"
+    scan: "({cash} ( latest volume > sma(volume, 20) * 1.5 and latest close > 1 day ago close and latest close > sma(close, 20) and latest rsi(14) > 40 and latest rsi(14) < 70 ))"
+    maxRows: 60
+
+# Breadth scans (Step 5 — used for market regime via /screener/process).
+# These are also Chartink clauses stored verbatim.
+breadth:
+  scanA:
+    name: "Above 200-SMA Liquid Stocks"
+    scan: "({cash} ( latest close > sma(close, 200) and latest volume > 500000 and latest close > 10 ))"
+  scanB:
+    name: "All Liquid Stocks"
+    scan: "({cash} ( latest volume > 500000 and latest close > 10 ))"
