@@ -1,0 +1,91 @@
+# Global settings for the Momentum Signals dashboard.
+# All values are configurable here — nothing is hardcoded in code.
+
+mode: eod  # "eod" (default) or "intraday"
+
+rate_limit:
+  max_requests_per_second: 0.5  # max 1 request per 2 seconds
+  per_symbol_delay_ms: 2000     # delay between oapi calls (one symbol per call)
+  global_delay_ms: 2000         # delay between any Chartink API call
+
+retry:
+  max_attempts: 5
+  backoff_base_ms: 2000     # initial backoff
+  backoff_factor: 2         # exponential backoff multiplier
+  max_backoff_ms: 60000     # cap at 60 seconds
+
+# Cost model (per round-trip trade: entry + exit).
+# All costs are in percent of trade value unless noted.
+cost_model:
+  brokerage_inr: 20.0       # flat per trade (discount broker), two-sided = 20 per leg
+  stt_pct: 0.025            # Securities Transaction Tax (sell side only)
+  exchange_charges_pct: 0.003  # NSE transaction charges
+  gst_pct: 0.18             # GST on brokerage + exchange charges (18%)
+  stamp_duty_pct: 0.015     # stamp duty (varies by state; 0.015% assumed)
+  slippage_pct_per_side: 0.1  # 0.1% per side (entry + exit), as specified
+
+# Gate thresholds (Step 6 — publish gate). All must pass.
+gate:
+  min_blended_expectancy_pct: 0.3    # blended expectancy > 0.3% per trade after costs
+  min_profit_factor: 1.3             # profit_factor >= 1.3
+  min_wilson_hit_rate_lower: 0.50    # Wilson 95% lower bound of hit rate > 50%
+  min_signal_occurrences: 30         # signal-level occurrences >= 30
+  min_signal_distinct_days: 20       # signal-level distinct_days >= 20
+  max_drawdown_pct: 25              # max drawdown within configured limit
+  regime_gates:
+    risk_on: true    # allow trades in risk-on regime
+    risk_off: false   # block trades in risk-off regime
+
+# Liquidity filter (Step 6): 20-day avg traded value >= Rs 1 crore, price >= Rs 10
+liquidity:
+  min_price_inr: 10
+  min_avg_daily_value_inr: 10000000  # Rs 1 crore
+
+# Shrinkage blending weight: w = n_stock / (n_stock + K)
+shrinkage:
+  k: 30  # threshold below which low_sample = true
+
+# Scoring: composite score = wilson_lower × (1 + avg_return) × confidence_factor
+# confidence_factor = sqrt(occurrences / (occurrences + k))
+scoring:
+  weights:
+    wilson_lower: 1.0
+    avg_return: 1.0
+    profit_factor: 1.0
+    hit_rate: 0.5
+
+# Backtest configuration
+backtest:
+  max_rows_default: 60             # Default historical days for /backtest/process
+  max_rows_max: 160                # Hard cap
+  entry_rule: "next_trading_day_open"  # Entry = OPEN of next trading day after signal
+  exit_horizons: [1, 3, 5, 10]     # Exit at close of day +1, +3, +5, +10
+  stop_multiplier_atr: 1.5         # Stop at 1.5 x ATR14 below entry
+  atr_period: 14                   # ATR period
+
+# Sanity check (Step 4): if any hit rate > 80% on more than 100 occurrences, FAIL the run
+sanity_check:
+  max_hit_rate_threshold: 0.80
+  min_occurrences_for_check: 100
+
+# Corporate action guard
+corporate_action:
+  drop_threshold_pct: -35.0       # close-to-close drop below -35% triggers flag
+  spike_threshold_pct: 60.0       # close-to-close spike above +60% triggers flag
+
+# Walk-forward split
+walk_forward:
+  train_frac: 0.70  # first 70% of dates = training, last 30% = out-of-sample
+
+# History window cap (Step 5: expanding window capped at 3 years)
+history:
+  max_window_years: 3
+
+# OHLCV fetch configuration
+ohlcv:
+  timeframe: "1+day"
+  size: 200  # max daily candles per fetch
+
+# Regime configuration (Step 5)
+regime:
+  breadth_threshold: 0.50  # breadth > threshold → risk-on
