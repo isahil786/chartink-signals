@@ -463,6 +463,15 @@ app.post(`${BASE}/api/pipeline/run`, async (_req, res) => {
 
 signals.init();
 
+// Auto-run EOD pipeline daily at 15:30 IST
+setInterval(async () => {
+  const now = new Date();
+  const ist = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+  if (ist === '15:30') {
+    try { await runEODPipeline(); console.log('[pipeline] auto-run triggered'); } catch (e) { console.error('[pipeline] auto-run failed:', e.message); }
+  }
+}, 60000);
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Chartink Dashboard running at http://localhost:${PORT}${BASE}/`);
   console.log(`API ready at http://localhost:${PORT}${BASE}/api/screeners`);
