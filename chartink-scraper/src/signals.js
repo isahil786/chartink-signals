@@ -128,7 +128,7 @@ function loadFlag() {
   } catch (e) {
     console.error('[signals] failed to load momentum-flag.json:', e.message);
   }
-  return false;
+  return true;
 }
 
 function saveFlag(enabled) {
