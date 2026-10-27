@@ -371,6 +371,13 @@ tr:hover td {
   position: relative;
   height: 280px;
   width: 100%;
+  overflow: hidden;
+}
+.chart-wrap canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 .chart-wrap-sector {
   height: 320px;
@@ -382,6 +389,11 @@ tr:hover td {
   display: flex;
   gap: 24px;
   align-items: flex-start;
+}
+
+/* Ensure pipeline panel charts don't overflow into adjacent panels */
+.panel-pipeline .chart-wrap {
+  height: 260px;
 }
 
 /* ── Top symbols ─────────────────────────────────────────────── */

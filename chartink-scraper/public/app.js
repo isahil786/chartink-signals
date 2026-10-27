@@ -831,9 +831,9 @@ function renderRegimeChart(regimeData) {
           borderColor: '#f59e0b',
           backgroundColor: 'rgba(245, 158, 11, 0.2)',
           tension: 0,
-          stepped: true,
+          stepped: 'after',
           yAxisID: 'y1',
-          pointRadius: 0,
+          pointRadius: 3,
         },
       ],
     },
@@ -841,6 +841,16 @@ function renderRegimeChart(regimeData) {
       responsive: true,
       interaction: { mode: 'index', intersect: false },
       scales: {
+        x: {
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          maxTicks: 12,
+          ticks: {
+            maxRotation: 45,
+            minRotation: 45,
+            autoSkip: true,
+            maxTicksLimit: 12,
+          },
+        },
         y: {
           type: 'linear',
           position: 'left',
