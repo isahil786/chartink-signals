@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node pipeline-runner.js",
     "server": "node server.js",
+    "batch": "node batch.js",
     "pipeline": "node pipeline-runner.js",
     "pipeline:day": "node pipeline-runner.js --day",
     "pipeline:weekly": "node pipeline-runner.js --weekly",
