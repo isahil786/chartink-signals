@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { runScreener, extractScanClause, extractCsrfToken } from './src/chartink.js';
 import * as signals from './src/signals.js';
 import { runEODPipeline } from './src/scheduler.js';
+import { ensureProcessedDirs } from './src/processor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -462,6 +463,7 @@ app.post(`${BASE}/api/pipeline/run`, async (_req, res) => {
 // timers at boot.
 
 signals.init();
+ensureProcessedDirs();
 
 // Auto-run EOD pipeline daily at 15:30 IST
 setInterval(async () => {

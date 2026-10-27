@@ -2,6 +2,7 @@ services:
   - type: web
     name: chartink-scraper
     runtime: node
+    rootDir: chartink-scraper
     region: oregon
     plan: free
     env: node

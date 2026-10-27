@@ -6,7 +6,5 @@ npm-debug.log
 .env
 *.md
 state/
-processed/
 chartink-scraper/state/
-chartink-scraper/processed/
 chartink-scraper/node_modules
