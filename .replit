@@ -5,7 +5,8 @@ router = "application"
 deploymentTarget = "autoscale"
 
 [deployment.postBuild]
-args = ["pnpm", "store", "prune"]
+args = ["npm", "ci"]
+workdir = "chartink-scraper"
 env = { "CI" = "true" }
 
 [workflows]
@@ -32,29 +33,9 @@ waitForPort = 3000
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[agent]
-stack = "PNPM_WORKSPACE"
-expertMode = true
-
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
-
 [[ports]]
 localPort = 3000
-externalPort = 8000
-
-[[ports]]
-localPort = 5000
 externalPort = 3000
-
-[[ports]]
-localPort = 8080
-externalPort = 80
-
-[[ports]]
-localPort = 8081
-externalPort = 8081
 
 [nix]
 packages = ["killall"]

@@ -1,6 +1,5 @@
 import { execSync } from 'child_process';
 import path from 'path';
-import fs from 'fs';
 
 const tests = [
   { name: 'Step 5 — PIT stats + regime', cmd: 'node test-step5.mjs' },
@@ -16,15 +15,28 @@ console.log('Running integration tests...\n');
 for (const { name, cmd } of tests) {
   console.log(`\n═══ ${name} ═══`);
   try {
-  const output = execSync(cmd, {
-    cwd: process.cwd(),
-    timeout: 180000,
-    encoding: 'utf8',
-    stdio: 'pipe',
-  });
+    const output = execSync(cmd, {
+      cwd: process.cwd(),
+      timeout: 180000,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
     // Check for success markers
     if (output.includes('DONE')) {
-      console.log(output.split('\n').filter(l => l.startsWith('[step') && (l.includes('VERIFIED') || l.includes('DONE') || l.includes('SAVED') || l.includes('PASSED') || l.includes('ERROR'))).join('\n'));
+      console.log(
+        output
+          .split('\n')
+          .filter(
+            (l) =>
+              l.startsWith('[step') &&
+              (l.includes('VERIFIED') ||
+                l.includes('DONE') ||
+                l.includes('SAVED') ||
+                l.includes('PASSED') ||
+                l.includes('ERROR'))
+          )
+          .join('\n')
+      );
       passed++;
     } else {
       console.log(output);
@@ -32,7 +44,12 @@ for (const { name, cmd } of tests) {
       failed++;
     }
   } catch (e) {
-    console.log(e.stdout?.split('\n').filter(l => l.startsWith('[step') || l.includes('Error') || l.includes('error')).join('\n') || e.message);
+    console.log(
+      e.stdout
+        ?.split('\n')
+        .filter((l) => l.startsWith('[step') || l.includes('Error') || l.includes('error'))
+        .join('\n') || e.message
+    );
     console.log(`FAIL: ${name}`);
     failed++;
   }
@@ -60,7 +77,7 @@ try {
 } catch (e) {
   if (e.stderr?.includes('error')) {
     // Check if these are pre-existing errors only
-    const errors = e.stderr.split('\n').filter(l => l.includes('error')).length;
+    const errors = e.stderr.split('\n').filter((l) => l.includes('error')).length;
     const srcErrors = errors; // all errors are in src/
     if (srcErrors === 0) {
       console.log('PASS: no src lint errors');
