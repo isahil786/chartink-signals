@@ -2,11 +2,12 @@ services:
   - type: web
     name: chartink-scraper
     runtime: node
+    rootDir: chartink-scraper
     region: oregon
     plan: free
     env: node
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: npm run server
     envVars:
       - key: NODE_ENV
         value: production
