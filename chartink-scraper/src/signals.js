@@ -19,7 +19,7 @@ const QUERIES_FILE = path.join(CHARTINK_DIR, 'momentum-queries.json');
 const WATCHLIST_FILE = path.join(CHARTINK_DIR, 'watchlist.txt');
 
 const STATUS_INTERVAL = 30_000;
-const RUN_INTERVAL = 120_000;
+const RUN_INTERVAL = 60 * 60 * 1000;
 const BACKTEST_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_ROWS = 60;
 const IST = 'Asia/Kolkata';
@@ -52,7 +52,6 @@ const NSE_HOLIDAYS_2026 = new Set([
 export const signalsRouter = express.Router();
 
 let statusTimer = null;
-let runTimer = null;
 
 let fetching = false;
 let backtestFetching = false;
@@ -165,8 +164,8 @@ function isMarketOpen(now = new Date()) {
   const h24 = Number(istField(now, { hour12: false, hour: '2-digit' }));
   const m = Number(istField(now, { minute: '2-digit' }));
   const mins = h24 * 60 + m;
-  // 09:15 = 555  ..  16:00 = 960
-  return mins >= 555 && mins < 960;
+  // 09:00 = 540  ..  15:30 = 930
+  return mins >= 540 && mins <= 930;
 }
 
 function strengthFromPct(pct) {
@@ -409,6 +408,50 @@ export async function generateSignals() {
   writeLatest();
 }
 
+const SIGNAL_DISCORD_LOG = path.join(STATE_DIR, 'signals_discord_log.jsonl');
+
+function nowISTString() {
+  const d = new Date();
+  return d.toLocaleString('en-IN', {
+    timeZone: IST,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }) + ' IST';
+}
+
+function logSignalsToDisk(stocks) {
+  if (!stocks || !stocks.length) return;
+  ensureDirs();
+  const ts = nowISTString();
+  const fh = fs.openSync(SIGNAL_DISCORD_LOG, 'a');
+  for (const st of stocks) {
+    const entry = {
+      istTimestamp: ts,
+      stockName: st.name || '',
+      symbol: st.symbol || '',
+      signalName: st.signal || '',
+      type: st.type || '',
+      ltp: st.ltp ?? null,
+      pctChange: st.pctChange ?? null,
+      volume: st.volume ?? null,
+      sr: st.sr ?? null,
+      strength: st.strength || '',
+      confidence: st.confidence ?? null,
+      score: st.score ?? null,
+      recentMatch: st.recentMatch || null,
+      generatedAt: st.generatedAt || null,
+    };
+    fs.writeSync(fh, JSON.stringify(entry) + '\n');
+  }
+  fs.closeSync(fh);
+  console.log(`[signals] logged ${stocks.length} signals to ${SIGNAL_DISCORD_LOG}`);
+}
+
 // ─── Status + cycle ───────────────────────────────────────────────
 
 export function refreshStatus() {
@@ -465,7 +508,9 @@ async function runCycle() {
     fetching = true;
     try {
       await generateSignals();
-      const embeds = formatSignalEmbeds(snapshot().stocks, 'Momentum');
+      const stocks = signalsCache.stocks || [];
+      logSignalsToDisk(stocks);
+      const embeds = formatSignalEmbeds(stocks, 'Momentum');
       if (embeds) await notifyDiscord(null, embeds);
     } catch (e) {
       console.error('[signals] cycle failed:', e.message);
@@ -543,13 +588,32 @@ signalsRouter.post('/backtest/:type', express.json(), async (req, res) => {
 
 // ─── Boot ─────────────────────────────────────────────────────────
 
+let hourlyTimer = null;
+
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function scheduleNextHourly() {
+  if (hourlyTimer) clearTimeout(hourlyTimer);
+  const now = Date.now();
+  const istNow = now + IST_OFFSET_MS;
+  const istHourStart = Math.floor(istNow / (60 * 60 * 1000)) * (60 * 60 * 1000);
+  let nextIstHour = istHourStart + 60 * 60 * 1000;
+  if (nextIstHour <= istNow) nextIstHour += 60 * 60 * 1000;
+  const nextUtc = nextIstHour - IST_OFFSET_MS;
+  const delay = Math.max(1000, nextUtc - now);
+  hourlyTimer = setTimeout(async () => {
+    try { await runCycle(); } catch (e) { console.error('[signals] hourly cycle failed:', e.message); }
+    scheduleNextHourly();
+  }, delay);
+  console.log(`[signals] next hourly run in ${Math.round(delay / 1000)}s at ${new Date(nextUtc).toISOString()} (IST ${new Date(nextIstHour).toISOString()})`);
+}
+
 export function startTimers() {
   if (statusTimer) clearInterval(statusTimer);
-  if (runTimer) clearInterval(runTimer);
   statusTimer = setInterval(refreshStatus, STATUS_INTERVAL);
-  runTimer = setInterval(runCycle, RUN_INTERVAL);
+  scheduleNextHourly();
   console.log(
-    `[signals] timers started (status=${STATUS_INTERVAL}ms, cycle=${RUN_INTERVAL}ms)`
+    `[signals] timers started (status=${STATUS_INTERVAL}ms, hourly clock-sync)`
   );
 }
 
